@@ -43,7 +43,28 @@ from .enums import (
     PAYMENTMETHOD,
 )
 
-CUSTOMER_IMAGE_BASE = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+CUSTOMER_IMAGES = [
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1504257432389-52343af06ae3?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=150&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=150&auto=format&fit=crop&q=80",
+]
 
 # ---------------------------------------------------------------------------
 # Data definitions
@@ -200,14 +221,14 @@ RESERVATION_DAY_OFFSETS = [
 
 def create_customer_records(session: Session):
     customers = {}
-    for cid, first, last, email, phone, status, points, tier, discount, prefs in CUSTOMERS:
+    for idx, (cid, first, last, email, phone, status, points, tier, discount, prefs) in enumerate(CUSTOMERS):
         customer = Customer(
             id=cid,
             firstName=first,
             lastName=last,
             email=email,
             phone=phone,
-            image=CUSTOMER_IMAGE_BASE,
+            image=CUSTOMER_IMAGES[idx % len(CUSTOMER_IMAGES)],
             status=status,
             totalOrders=0,
             totalReservations=0,

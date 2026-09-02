@@ -116,7 +116,7 @@ def update_reservation(
     return reservation
 
 
-@router.patch("/{reservation_id}/status")
+@router.patch("/{reservation_id}/status", response_model=ReservationResponseSchema)
 def update_reservation_status(
     reservation_id: str,
     data: ReservationStatusUpdateSchema,
