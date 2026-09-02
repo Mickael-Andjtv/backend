@@ -5,6 +5,7 @@ from ..models import (
     Customer,
     CustomerLoyalty,
     CustomerPreferences,
+    AuthAccount,
     Category,
     MenuItem,
     MenuOption,

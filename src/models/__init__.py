@@ -1,5 +1,6 @@
 from .user_model import User
 from .customer import Customer, CustomerLoyalty, CustomerPreferences
+from .auth_account import AuthAccount
 from .category import Category
 from .menu_item import MenuItem, MenuOption, MenuOptionGroup
 from .restaurant_table_model import RestaurantTable
@@ -13,6 +14,7 @@ __all__ = [
     "Customer",
     "CustomerLoyalty",
     "CustomerPreferences",
+    "AuthAccount",
     "Category",
     "MenuItem",
     "MenuOption",

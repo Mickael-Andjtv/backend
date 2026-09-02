@@ -1,3 +1,9 @@
+from .auth_schema import (
+    RegisterSchema,
+    LoginSchema,
+    AuthResponseSchema,
+    MeResponseSchema,
+)
 from .customer_schema import (
     CustomerCreateSchema,
     CustomerUpdateSchema,
@@ -40,6 +46,10 @@ from .reservation_schema import (
 )
 
 __all__ = [
+    "RegisterSchema",
+    "LoginSchema",
+    "AuthResponseSchema",
+    "MeResponseSchema",
     "CustomerCreateSchema",
     "CustomerUpdateSchema",
     "CustomerResponseSchema",

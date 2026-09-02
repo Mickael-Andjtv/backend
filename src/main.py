@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from .core.database import create_db_and_tables
 from .routers import (
     categories_router,
+    auth_router,
     menu_items_router,
     customers_router,
     tables_router,
@@ -39,6 +40,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(categories_router)
+app.include_router(auth_router)
 app.include_router(menu_items_router)
 app.include_router(customers_router)
 app.include_router(tables_router)
