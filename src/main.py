@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .core.database import create_db_and_tables
 from .routers import (
@@ -12,7 +14,10 @@ from .routers import (
     orders_router,
     reservations_router,
     dashboard_router,
+    uploads_router,
 )
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 @asynccontextmanager
@@ -40,6 +45,9 @@ app.include_router(tables_router)
 app.include_router(orders_router)
 app.include_router(reservations_router)
 app.include_router(dashboard_router)
+app.include_router(uploads_router)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")

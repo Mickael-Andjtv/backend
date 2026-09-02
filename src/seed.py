@@ -6,8 +6,8 @@ Populates the database with coherent demo data:
 - 20 restaurant tables
 - 20 customers (with loyalty + preferences)
 - 20 menu items (with option groups)
-- 20 orders (with order items)
-- 20 reservations
+- 90 orders (6/day over the last 15 days, today included)
+- 60 reservations (past, today and upcoming)
 
 Run from the backend directory:
     .venv/bin/python -m src.seed [--fresh]
@@ -157,11 +157,15 @@ MENU_ITEMS = [
 ]
 
 # Mix of statuses for realistic dashboard
-ORDER_STATUSES = [
-    "COMPLETED", "PREPARING", "PREPARING", "READY", "CONFIRMED",
-    "PENDING", "COMPLETED", "CANCELLED", "COMPLETED", "PENDING",
-    "PREPARING", "READY", "COMPLETED", "CONFIRMED", "COMPLETED",
-    "CANCELLED", "CONFIRMED", "COMPLETED", "PREPARING", "READY",
+# Past days: mostly completed with a few cancelled orders/day.
+PAST_ORDER_STATUSES = [
+    "COMPLETED", "COMPLETED", "COMPLETED", "COMPLETED", "COMPLETED",
+    "CANCELLED",
+]
+
+# Today: active mix so ordersToday / pendingOrders / revenueToday are non-zero.
+TODAY_ORDER_STATUSES = [
+    "CONFIRMED", "PREPARING", "PREPARING", "READY", "PENDING", "COMPLETED",
 ]
 
 ORDER_TYPES = [
@@ -178,11 +182,19 @@ RESERVATION_TIMES = [
     time(20, 0), time(12, 0), time(20, 0), time(19, 0), time(20, 0),
 ]
 
-RESERVATION_STATUSES = [
-    "CONFIRMED", "PENDING", "CONFIRMED", "COMPLETED", "CANCELLED",
-    "CONFIRMED", "CONFIRMED", "PENDING", "CONFIRMED", "PENDING",
-    "CONFIRMED", "CANCELLED", "CONFIRMED", "PENDING", "CONFIRMED",
-    "PENDING", "CONFIRMED", "PENDING", "CONFIRMED", "CONFIRMED",
+# Relative days (0 = today, negative = past, positive = future) biased so the
+# grid home page (today) and the next few evenings look busy.
+RESERVATION_DAY_OFFSETS = [
+    0, 0, 0, 0, 0, 0,             # today: dense for the day grid
+    1, 1, 1, 1,                   # tomorrow
+    -1, -1, -1, -1,               # yesterday
+    2, 2, 2, -2, -2, -2,          # +/- 2 days
+    3, 3, 3, -3, -3, -3,          # +/- 3 days
+    4, 4, -4, -4, 5, 5, -5, -5,   # +/- 4-5 days
+    6, 6, -6, -6,                 # +/- 6 days
+    7, 7, -7, -7,                 # +/- 7 days
+    8, 8, -8, -8,                 # +/- 8 days
+    9, -9, 10, 11, -10, -11,      # spread over the rest of the month
 ]
 
 
@@ -301,22 +313,22 @@ def create_orders(session: Session, customers: dict, items: dict):
         [("item-10", 2, "Piment moyen")],
         [("item-5", 1, None)],
         [("item-6", 2, None)],
-        [("item-5", 2, None)],
-        [("item-8", 2, "Saignant")],
-        [("item-12", 1, None)],
+        [("item-13", 1, None), ("item-16", 2, None)],
+        [("item-8", 1, None), ("item-19", 1, None)],
+        [("item-12", 1, None), ("item-18", 1, None)],
         [("item-7", 2, "STRICTEMENT SANS GLUTEN")],
         [("item-5", 3, None)],
         [("item-6", 4, None)],
         [("item-9", 1, "Attention allergie fruits à coque")],
         [("item-12", 2, None)],
-        [("item-5", 1, None)],
+        [("item-15", 1, None)],
         [("item-8", 1, "Cuisson à point")],
         [("item-3", 1, None)],
         [("item-5", 2, None)],
         [("item-7", 1, None), ("item-12", 1, None)],
     ]
 
-    # promo mapping for some orders
+    # promo mapping for some orders (cycled)
     order_promos = [
         None, "promo-welcome", "promo-gold", "promo-chef", "promo-welcome",
         None, None, None, "promo-vip", None,
@@ -327,109 +339,141 @@ def create_orders(session: Session, customers: dict, items: dict):
     now = datetime.utcnow()
     customers_rec = [customers[cid]["customer"] for cid, *_ in CUSTOMERS]
 
-    for i in range(20):
-        status = ORDER_STATUSES[i]
-        otype = ORDER_TYPES[i]
-        customer = customers_rec[i % len(customers_rec)]
-        promo_id = order_promos[i]
+    # 6 orders per day over the last 15 days (today included) => 90 orders.
+    orders = []
+    total = 0
+    for day in range(15):
+        statuses = TODAY_ORDER_STATUSES if day == 0 else PAST_ORDER_STATUSES
+        for slot, status in enumerate(statuses):
+            i = total
+            total += 1
+            otype = ORDER_TYPES[i % len(ORDER_TYPES)]
+            customer = customers_rec[i % len(customers_rec)]
+            promo_id = order_promos[(day * 3 + slot) % len(order_promos)]
 
-        items_payload = order_menu_sets[i]
-        subtotal = 0.0
-        created_at = now - timedelta(days=(19 - i) % 25, hours=3 + (i % 8))
-        created_at = created_at.replace(minute=(i * 7) % 60)
-
-        order_items = []
-        for menu_item_id, qty, notes in items_payload:
-            menu_item = items[menu_item_id]
-            line_total = round(menu_item.price * qty, 2)
-            subtotal += line_total
-            order_items.append(
-                OrderItem(
-                    id=f"oi-{i + 1}-{menu_item_id}",
-                    menuItemId=menu_item_id,
-                    quantity=qty,
-                    totalPrice=line_total,
-                    notes=notes,
-                    createdAt=created_at,
-                )
+            # Times: spread across the day without going past now for today.
+            if day == 0:
+                latest = max(7, now.hour - 1)
+                hour = min(8 + slot, latest)
+            else:
+                hour = 9 + (slot * 2) % 8
+            created_at = (now - timedelta(days=day)).replace(
+                hour=hour,
+                minute=(i * 7) % 60,
+                second=0,
+                microsecond=0,
             )
 
-        discount_amount = 0.0
-        if promo_id:
-            promo = session.get(PromoCode, promo_id)
-            if promo:
-                if promo.discountType == "PERCENTAGE":
-                    discount_amount = round(subtotal * (promo.discountValue / 100), 2)
-                else:
-                    discount_amount = min(promo.discountValue, subtotal)
-                if promo.maxDiscountAmount:
-                    discount_amount = min(discount_amount, promo.maxDiscountAmount)
-                promo.usageCount += 1
+            items_payload = order_menu_sets[(day * 3 + slot) % len(order_menu_sets)]
+            subtotal = 0.0
+            order_items = []
+            for menu_item_id, qty, notes in items_payload:
+                menu_item = items[menu_item_id]
+                line_total = round(menu_item.price * qty, 2)
+                subtotal += line_total
+                order_items.append(
+                    OrderItem(
+                        id=f"oi-{i + 1:03d}-{menu_item_id}",
+                        menuItemId=menu_item_id,
+                        quantity=qty,
+                        totalPrice=line_total,
+                        notes=notes,
+                        createdAt=created_at,
+                    )
+                )
 
-        taxed_base = subtotal - discount_amount
-        total_amount = round(taxed_base, 2)
+            discount_amount = 0.0
+            if promo_id:
+                promo = session.get(PromoCode, promo_id)
+                if promo:
+                    if promo.discountType == "PERCENTAGE":
+                        discount_amount = round(subtotal * (promo.discountValue / 100), 2)
+                    else:
+                        discount_amount = min(promo.discountValue, subtotal)
+                    if promo.maxDiscountAmount:
+                        discount_amount = min(discount_amount, promo.maxDiscountAmount)
+                    promo.usageCount += 1
 
-        table = table_ids[i % len(table_ids)] if otype == "EAT_IN" else None
-        payment_status = (
-            PAYMENTSTATUS.REFUNDED
-            if status == "CANCELLED"
-            else PAYMENTSTATUS.PAID if (i % 3 != 0) else PAYMENTSTATUS.UNPAID
-        )
-        payment_method = (
-            None
-            if payment_status == PAYMENTSTATUS.UNPAID
-            else [PAYMENTMETHOD.CARD, PAYMENTMETHOD.CASH, PAYMENTMETHOD.MOBILE_MONEY][i % 3]
-        )
-        completed_at = created_at + timedelta(minutes=50 + i) if status == "COMPLETED" else None
+            taxed_base = subtotal - discount_amount
+            total_amount = round(taxed_base, 2)
 
-        order = Order(
-            id=f"ord-{i + 1:03d}",
-            orderNumber=f"CMD-{101 + i}",
-            type=otype,
-            status=status,
-            customerId=customer.id,
-            tableId=table.id if table else None,
-            discountAmount=discount_amount,
-            appliedPromoId=promo_id,
-            taxAmount=0.0,
-            totalAmount=total_amount,
-            paymentStatus=payment_status,
-            paymentMethod=payment_method.value if payment_method else None,
-            estimatedPreparationTimeMinutes=15 + (i % 15),
-            completedAt=completed_at,
-            createdAt=created_at,
-            updatedAt=created_at + timedelta(minutes=20),
-        )
-        session.add(order)
-        # attach orderId to items
-        for oi in order_items:
-            oi.orderId = order.id
-            session.add(oi)
+            table = table_ids[i % len(table_ids)] if otype == "EAT_IN" else None
+            payment_status = (
+                PAYMENTSTATUS.REFUNDED
+                if status == "CANCELLED"
+                else PAYMENTSTATUS.PAID if (i % 3 != 0) else PAYMENTSTATUS.UNPAID
+            )
+            payment_method = (
+                None
+                if payment_status == PAYMENTSTATUS.UNPAID
+                else [PAYMENTMETHOD.CARD, PAYMENTMETHOD.CASH, PAYMENTMETHOD.MOBILE_MONEY][i % 3]
+            )
+            completed_at = (
+                created_at + timedelta(minutes=40 + (slot * 13))
+                if status == "COMPLETED"
+                else None
+            )
 
-        # update customer aggregate stats
-        customer.totalOrders += 1
-        if status != "CANCELLED":
-            customer.totalSpent = round(customer.totalSpent + total_amount, 2)
-        customer.lastVisitAt = created_at
-        # update loyalty points
-        loyalty = customers[customer.id]["loyalty"]
-        if status == "COMPLETED":
-            loyalty.points += int(total_amount)
+            order = Order(
+                id=f"ord-{i + 1:03d}",
+                orderNumber=f"CMD-{101 + i}",
+                type=otype,
+                status=status,
+                customerId=customer.id,
+                tableId=table.id if table else None,
+                discountAmount=discount_amount,
+                appliedPromoId=promo_id,
+                taxAmount=0.0,
+                totalAmount=total_amount,
+                paymentStatus=payment_status,
+                paymentMethod=payment_method.value if payment_method else None,
+                estimatedPreparationTimeMinutes=15 + (i % 15),
+                completedAt=completed_at,
+                createdAt=created_at,
+                updatedAt=created_at + timedelta(minutes=20),
+            )
+            session.add(order)
+            orders.append(order)
+            # attach orderId to items
+            for oi in order_items:
+                oi.orderId = order.id
+                session.add(oi)
+
+            # update customer aggregate stats
+            customer.totalOrders += 1
+            if status != "CANCELLED":
+                customer.totalSpent = round(customer.totalSpent + total_amount, 2)
+            customer.lastVisitAt = created_at
+            # update loyalty points
+            loyalty = customers[customer.id]["loyalty"]
+            if status == "COMPLETED":
+                loyalty.points += int(total_amount)
+
+    return orders
 
 
 def create_reservations(session: Session, customers: dict):
     table_ids = session.exec(select(RestaurantTable)).all()
     customers_rec = [customers[cid]["customer"] for cid, *_ in CUSTOMERS]
-    now = datetime.utcnow().date()
+    today = datetime.utcnow().date()
+    now = datetime.utcnow()
+    reservations = []
 
-    for i in range(20):
+    for i, offset in enumerate(RESERVATION_DAY_OFFSETS):
         customer = customers_rec[i % len(customers_rec)]
-        reserve_date = now - timedelta(days=10) + timedelta(days=(i % 20))
-        # ensure at least some in the past & some in the future relative to now
-        if i < 12:
-            reserve_date = now - timedelta(days=11 - i)
+        reserve_date = today + timedelta(days=offset)
+
+        # Past dates are closed; today & future mix pending/confirmed.
+        if offset < 0:
+            status = "CANCELLED" if i % 6 == 2 else "COMPLETED"
         else:
-            reserve_date = now + timedelta(days=i - 11)
+            if i % 7 == 0:
+                status = "CANCELLED"
+            elif i % 3 == 0:
+                status = "PENDING"
+            else:
+                status = "CONFIRMED"
+
         table_id = table_ids[i % len(table_ids)].id if (i % 4 != 1) else None
 
         reservation = Reservation(
@@ -437,15 +481,51 @@ def create_reservations(session: Session, customers: dict):
             customerId=customer.id,
             tableId=table_id,
             reservationDate=reserve_date,
-            reservationTime=RESERVATION_TIMES[i],
+            reservationTime=RESERVATION_TIMES[i % len(RESERVATION_TIMES)],
             numberOfGuests=[2, 4, 8, 5, 2][i % 5],
-            status=RESERVATION_STATUSES[i],
+            status=status,
             specialRequest=None if i % 3 == 0 else "Demande spéciale",
-            createdAt=now and datetime.utcnow() - timedelta(days=4),
-            updatedAt=now and datetime.utcnow() - timedelta(days=2),
+            createdAt=now - timedelta(days=4 + (i % 5), hours=i % 12),
+            updatedAt=now - timedelta(days=2 + (i % 3), hours=(i % 6)),
         )
         session.add(reservation)
+        reservations.append(reservation)
         customer.totalReservations += 1
+
+    return reservations
+
+
+def update_table_statuses(session: Session, orders: list, reservations: list):
+    """Mark tables occupied/reserved based on today's live orders & reservations."""
+    today = datetime.utcnow().date()
+    now_time = datetime.utcnow().time()
+    table_by_id = {t.id: t for t in session.exec(select(RestaurantTable)).all()}
+
+    reserved_ids = {
+        r.tableId
+        for r in reservations
+        if r.tableId
+        and r.reservationDate == today
+        and r.status in ("PENDING", "CONFIRMED")
+        and r.reservationTime >= now_time
+    }
+    occupied_ids = {
+        o.tableId
+        for o in orders
+        if o.tableId
+        and o.createdAt.date() == today
+        and o.status not in ("COMPLETED", "CANCELLED")
+    }
+
+    for tid, table in table_by_id.items():
+        if tid in reserved_ids:
+            table.status = TABLESTATUS.RESERVED
+        elif tid in occupied_ids:
+            table.status = TABLESTATUS.OCCUPIED
+        elif tid == "tbl-020":
+            table.status = TABLESTATUS.UNAVAILABLE
+        else:
+            table.status = TABLESTATUS.AVAILABLE
 
 
 def seed(fresh: bool = False):
@@ -505,14 +585,19 @@ def seed(fresh: bool = False):
         print("Seeded menu items:", len(items))
 
         # Orders
-        create_orders(session, customers, items)
+        orders = create_orders(session, customers, items)
         session.commit()
-        print("Seeded orders: 20")
+        print("Seeded orders:", len(orders))
 
         # Reservations
-        create_reservations(session, customers)
+        reservations = create_reservations(session, customers)
         session.commit()
-        print("Seeded reservations: 20")
+        print("Seeded reservations:", len(reservations))
+
+        # Tables statuses reflecting today's activity
+        update_table_statuses(session, orders, reservations)
+        session.commit()
+        print("Updated table statuses")
 
     print("Seed complete.")
 
