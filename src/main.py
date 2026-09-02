@@ -16,6 +16,8 @@ from .routers import (
     reservations_router,
     dashboard_router,
     uploads_router,
+    notifications_router,
+    invoices_router,
 )
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -48,6 +50,8 @@ app.include_router(orders_router)
 app.include_router(reservations_router)
 app.include_router(dashboard_router)
 app.include_router(uploads_router)
+app.include_router(notifications_router)
+app.include_router(invoices_router)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

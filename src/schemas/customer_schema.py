@@ -46,6 +46,7 @@ class CustomerUpdateSchema(BaseModel):
     image: Optional[str] = None
     status: Optional[CustomerStatus] = None
     preferences: Optional[CustomerPreferencesSchema] = None
+    loyalty: Optional[CustomerLoyaltySchema] = None
 
 
 class CustomerResponseSchema(BaseModel):

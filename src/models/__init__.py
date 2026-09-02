@@ -8,6 +8,7 @@ from .reservation_model import Reservation
 from .order_model import Order, OrderItem
 from .payement_model import Payment
 from .promo_code import PromoCode
+from .notification import Notification
 
 __all__ = [
     "User",
@@ -25,4 +26,5 @@ __all__ = [
     "OrderItem",
     "Payment",
     "PromoCode",
+    "Notification",
 ]

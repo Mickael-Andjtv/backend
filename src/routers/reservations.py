@@ -11,6 +11,7 @@ from ..schemas import (
     ReservationResponseSchema,
 )
 from ..core.database import get_session
+from ..services.notification_service import create_notification
 
 router = APIRouter(prefix="/api/reservations", tags=["reservations"])
 
@@ -22,7 +23,7 @@ def get_reservations(
     customer_id: str = Query(None),
     reservation_date: date = Query(None),
     skip: int = Query(0),
-    limit: int = Query(10),
+    limit: int = Query(500),
 ):
     """Get all reservations"""
     filters = []
@@ -76,6 +77,20 @@ def create_reservation(
     session.add(reservation)
     session.commit()
     session.refresh(reservation)
+
+    # Notify admin of the new reservation
+    create_notification(
+        session,
+        title="Nouvelle réservation",
+        message=(
+            f"{customer.firstName} {customer.lastName} a réservé une table "
+            f"pour {data.numberOfGuests} personne(s) le {data.reservationDate} "
+            f"à {data.reservationTime}."
+        ),
+        type="RESERVATION",
+        referenceId=reservation.id,
+        referenceType="reservation",
+    )
     return reservation
 
 
@@ -117,6 +132,31 @@ def update_reservation_status(
     session.add(reservation)
     session.commit()
     session.refresh(reservation)
+
+    # Notify admin of important reservation status changes
+    customer = session.get(Customer, reservation.customerId)
+    name = (
+        f"{customer.firstName} {customer.lastName}"
+        if customer
+        else reservation.customerId
+    )
+    status_label = {
+        "PENDING": "en attente",
+        "CONFIRMED": "confirmée",
+        "CANCELLED": "annulée",
+        "COMPLETED": "terminée",
+    }.get(reservation.status, reservation.status)
+    create_notification(
+        session,
+        title="Mise à jour de réservation",
+        message=(
+            f"La réservation de {name} du {reservation.reservationDate} "
+            f"à {reservation.reservationTime} est maintenant {status_label}."
+        ),
+        type="RESERVATION",
+        referenceId=reservation.id,
+        referenceType="reservation",
+    )
     return reservation
 
 

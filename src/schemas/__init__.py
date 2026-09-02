@@ -44,6 +44,10 @@ from .reservation_schema import (
     ReservationStatusUpdateSchema,
     ReservationResponseSchema,
 )
+from .notification_schema import (
+    NotificationCreateSchema,
+    NotificationResponseSchema,
+)
 
 __all__ = [
     "RegisterSchema",
@@ -80,4 +84,6 @@ __all__ = [
     "ReservationUpdateSchema",
     "ReservationStatusUpdateSchema",
     "ReservationResponseSchema",
+    "NotificationCreateSchema",
+    "NotificationResponseSchema",
 ]

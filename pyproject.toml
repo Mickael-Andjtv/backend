@@ -11,6 +11,7 @@ dependencies = [
     "cloudinary>=1.46.2",
     "fastapi[standard]>=0.141.1",
     "psycopg2-binary>=2.9.12",
+    "reportlab>=5.0.1",
     "sqlmodel>=0.0.42",
 ]
 

@@ -16,6 +16,7 @@ from ..models import (
     OrderItem,
     Payment,
     PromoCode,
+    Notification,
 )
 
 engine = create_engine(get_settings().DATABASE_URL)

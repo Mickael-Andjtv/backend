@@ -10,8 +10,23 @@ from ..schemas import (
     CustomerResponseSchema,
 )
 from ..core.database import get_session
+from ..services.notification_service import create_notification
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
+
+TIER_THRESHOLDS = [
+    (3000, "VIP"),
+    (2000, "GOLD"),
+    (1000, "SILVER"),
+]
+
+
+def compute_tier_from_points(points: int) -> str:
+    """Business rule: tier derives from accumulated points."""
+    for threshold, tier in TIER_THRESHOLDS:
+        if points >= threshold:
+            return tier
+    return "BRONZE"
 
 
 @router.get("", response_model=list[CustomerResponseSchema])
@@ -19,7 +34,7 @@ def get_customers(
     session: Session = Depends(get_session),
     status: str = Query(None),
     skip: int = Query(0),
-    limit: int = Query(10),
+    limit: int = Query(500),
 ):
     """Get all customers"""
     query = select(Customer)
@@ -91,6 +106,15 @@ def create_customer(
     session.add(loyalty)
     session.commit()
     session.refresh(customer)
+
+    create_notification(
+        session,
+        title="Nouveau client",
+        message=f"{data.firstName} {data.lastName} ({data.email}) a rejoint l'établissement.",
+        type="CUSTOMER",
+        referenceId=customer_id,
+        referenceType="customer",
+    )
     return customer
 
 
@@ -109,7 +133,9 @@ def update_customer(
     
     # Handle preferences separately
     preferences_data = update_data.pop("preferences", None)
-    
+    # Handle loyalty separately
+    loyalty_data = update_data.pop("loyalty", None)
+
     for key, value in update_data.items():
         setattr(customer, key, value)
     
@@ -125,6 +151,32 @@ def update_customer(
                 prefs.allergies = preferences_data["allergies"]
             prefs.preferredTableNotes = preferences_data.get("preferredTableNotes", prefs.preferredTableNotes)
             session.add(prefs)
+
+    # Update loyalty (tier & points) if provided
+    if loyalty_data:
+        loyalty = session.exec(
+            select(CustomerLoyalty).where(CustomerLoyalty.customerId == customer_id)
+        ).first()
+        if not loyalty:
+            loyalty = CustomerLoyalty(
+                id=str(uuid.uuid4()),
+                customerId=customer_id,
+                points=0,
+                tier="BRONZE",
+            )
+            session.add(loyalty)
+        if "points" in loyalty_data:
+            loyalty.points = loyalty_data["points"]
+        if "tier" in loyalty_data:
+            # Explicit manual tier: persists as set by the admin.
+            loyalty.tier = loyalty_data["tier"]
+        elif "points" in loyalty_data:
+            # Points changed without an explicit tier: keep single source
+            # of truth by recomputing the tier from the new points.
+            loyalty.tier = compute_tier_from_points(loyalty.points)
+        if "customDiscountPercent" in loyalty_data:
+            loyalty.customDiscountPercent = loyalty_data["customDiscountPercent"]
+        session.add(loyalty)
     
     customer.updatedAt = datetime.utcnow()
     session.add(customer)
@@ -162,15 +214,8 @@ def update_loyalty(
 
     loyalty.points += points
     
-    # Update tier based on points
-    if loyalty.points >= 3000:
-        loyalty.tier = "VIP"
-    elif loyalty.points >= 2000:
-        loyalty.tier = "GOLD"
-    elif loyalty.points >= 1000:
-        loyalty.tier = "SILVER"
-    else:
-        loyalty.tier = "BRONZE"
+    # Business rule: tier always follows accumulated points.
+    loyalty.tier = compute_tier_from_points(loyalty.points)
     
     session.add(loyalty)
     session.commit()

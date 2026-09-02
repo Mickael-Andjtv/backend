@@ -5,6 +5,7 @@ import uuid
 from ..models import AuthAccount, Customer, CustomerLoyalty, CustomerPreferences
 from ..schemas import AuthResponseSchema, RegisterSchema, LoginSchema
 from ..core.database import get_session
+from ..services.notification_service import create_notification
 from ..services.auth_service import (
     hash_password,
     verify_password,
@@ -129,6 +130,16 @@ def register(
     session.commit()
     session.refresh(customer)
     session.refresh(loyalty)
+
+    # Notify admin of the new customer registration
+    create_notification(
+        session,
+        title="Nouveau client",
+        message=f"{data.firstName} {data.lastName} ({data.email}) a créé un compte.",
+        type="CUSTOMER",
+        referenceId=customer_id,
+        referenceType="customer",
+    )
 
     payload = _build_customer(customer, loyalty, preferences)
     token = create_token(customer_id, customer.email)

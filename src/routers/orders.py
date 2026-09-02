@@ -11,6 +11,7 @@ from ..schemas import (
     OrderResponseSchema,
 )
 from ..core.database import get_session
+from ..services.notification_service import create_notification
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -125,6 +126,19 @@ def create_order(
 
     session.commit()
     session.refresh(order)
+
+    # Notify admin of the new order
+    create_notification(
+        session,
+        title="Nouvelle commande",
+        message=(
+            f"{customer.firstName} {customer.lastName} a passé la commande "
+            f"{order.orderNumber} pour un total de {round(final_total)} Ar."
+        ),
+        type="ORDER",
+        referenceId=order.id,
+        referenceType="order",
+    )
     return order
 
 
