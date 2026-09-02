@@ -1,6 +1,13 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from .customer_schema import CustomerResponseSchema
+
+
+class RegisterPreferences(BaseModel):
+    isVegetarian: bool = False
+    isGlutenFree: bool = False
+    allergies: Optional[List[str]] = None
+    preferredTableNotes: Optional[str] = None
 
 
 class RegisterSchema(BaseModel):
@@ -9,6 +16,7 @@ class RegisterSchema(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     password: str = Field(min_length=6)
+    preferences: Optional[RegisterPreferences] = None
 
 
 class LoginSchema(BaseModel):

@@ -110,14 +110,27 @@ def register(
         customerId=customer_id,
     )
 
+    preferences = None
+    if data.preferences:
+        preferences = CustomerPreferences(
+            id=str(uuid.uuid4()),
+            customerId=customer_id,
+            isVegetarian=data.preferences.isVegetarian,
+            isGlutenFree=data.preferences.isGlutenFree,
+            allergies=data.preferences.allergies or [],
+            preferredTableNotes=data.preferences.preferredTableNotes,
+        )
+
     session.add(customer)
     session.add(loyalty)
     session.add(account)
+    if preferences:
+        session.add(preferences)
     session.commit()
     session.refresh(customer)
     session.refresh(loyalty)
 
-    payload = _build_customer(customer, loyalty, None)
+    payload = _build_customer(customer, loyalty, preferences)
     token = create_token(customer_id, customer.email)
     return {"token": token, "customer": payload}
 
