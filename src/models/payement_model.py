@@ -1,15 +1,21 @@
 from datetime import datetime
-from uuid import UUID, uuid4
-from sqlmodel import Field, SQLModel
-from ..enums import PAYEMENTMETHOD, PAYEMENTSTATUS
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional
+from ..enums import PAYMENTSTATUS, PAYMENTMETHOD
 
-class Payement(SQLModel):
-    amount:float
-    method:PAYEMENTMETHOD = PAYEMENTMETHOD.CARD
-    status:PAYEMENTSTATUS = PAYEMENTSTATUS.PENDING
-    paid_at:datetime = Field(default_factory=datetime.now)
 
-class PayementDB(Payement, table=True):
-    __tablename__ ='payements'
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    order_id:UUID|None = Field(None, foreign_key='orders.id')
+class Payment(SQLModel, table=True):
+    __tablename__ = "payment"
+
+    id: Optional[str] = Field(default=None, primary_key=True)
+    orderId: str = Field(foreign_key="order.id")
+    amount: float
+    method: PAYMENTMETHOD = PAYMENTMETHOD.CARD
+    status: PAYMENTSTATUS = PAYMENTSTATUS.UNPAID
+    transactionId: Optional[str] = None
+    paidAt: Optional[datetime] = None
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationship
+    order: Optional["Order"] = Relationship()

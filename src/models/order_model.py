@@ -1,20 +1,55 @@
 from datetime import datetime
-from uuid import UUID, uuid4
-from sqlmodel import Field, SQLModel
-from ..enums import ORDERSTATUS
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional, List
+from ..enums import ORDERSTATUS, PAYMENTSTATUS, PAYMENTMETHOD
 
 
-class Order(SQLModel):
-    order_number:str
-    status:ORDERSTATUS = ORDERSTATUS.PENDING
-    total_price:float
+class OrderItem(SQLModel, table=True):
+    __tablename__ = "order_item"
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    id: Optional[str] = Field(default=None, primary_key=True)
+    orderId: str = Field(foreign_key="order.id")
+    menuItemId: str = Field(foreign_key="menu_item.id")
+    quantity: int
+    totalPrice: float
+    notes: Optional[str] = None
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
+    order: Optional["Order"] = Relationship(back_populates="items")
+    menuItem: Optional["MenuItem"] = Relationship()
 
-class OrderDB(Order, table=True):
-    __tablename__ = 'orders'
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    retaurant_id:UUID|None = Field(None, foreign_key='restaurant_tables.id')
-    user_email:str|None = Field(None, foreign_key='users.email')
+
+class Order(SQLModel, table=True):
+    __tablename__ = "order"
+
+    id: Optional[str] = Field(default=None, primary_key=True)
+    orderNumber: str = Field(unique=True, index=True)
+    type: str  # "EAT_IN", "TAKEAWAY", "DELIVERY"
+    status: ORDERSTATUS = ORDERSTATUS.PENDING
+    customerId: str = Field(foreign_key="customer.id")
+    tableId: Optional[str] = Field(None, foreign_key="restaurant_table.id")
+    
+    # Financial calculations
+    discountAmount: Optional[float] = 0.0
+    appliedPromoId: Optional[str] = Field(None, foreign_key="promo_code.id")
+    taxAmount: Optional[float] = 0.0
+    totalAmount: float
+    
+    # Payment
+    paymentStatus: PAYMENTSTATUS = PAYMENTSTATUS.UNPAID
+    paymentMethod: Optional[PAYMENTMETHOD] = None
+    
+    # Timing
+    estimatedPreparationTimeMinutes: Optional[int] = None
+    completedAt: Optional[datetime] = None
+    
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    updatedAt: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Relationships
+    customer: Optional["Customer"] = Relationship(back_populates="orders")
+    table: Optional["RestaurantTable"] = Relationship(back_populates="orders")
+    items: List[OrderItem] = Relationship(back_populates="order")
+    appliedPromo: Optional["PromoCode"] = Relationship(back_populates="orders")
     

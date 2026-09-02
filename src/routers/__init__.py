@@ -1,0 +1,17 @@
+from .categories import router as categories_router
+from .menu_items import router as menu_items_router
+from .customers import router as customers_router
+from .tables import router as tables_router
+from .orders import router as orders_router
+from .reservations import router as reservations_router
+from .dashboard import router as dashboard_router
+
+__all__ = [
+    "categories_router",
+    "menu_items_router",
+    "customers_router",
+    "tables_router",
+    "orders_router",
+    "reservations_router",
+    "dashboard_router",
+]
